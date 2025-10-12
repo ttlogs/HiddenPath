@@ -38,4 +38,26 @@ class UIManager {
         this.elements.visibility.innerHTML = 
             `Заметность: <span style="color: ${color}">${text}</span>`;
     }
+
+    showAlert(message, type = 'warning') {
+        const alertDiv = document.createElement('div');
+        alertDiv.style.cssText = `
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: ${type === 'warning' ? '#ff4444' : '#4a9c5a'};
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 1000;
+            animation: fadeInOut 3s ease-in-out;
+        `;
+        alertDiv.textContent = message;
+        document.body.appendChild(alertDiv);
+        
+        setTimeout(() => {
+            document.body.removeChild(alertDiv);
+        }, 3000);
+    }
 }

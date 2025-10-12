@@ -6,7 +6,8 @@ class InputManager {
             y: 0,
             deltaX: 0,
             deltaY: 0,
-            isDown: false
+            isDown: false,
+            wheelDelta: 0
         };
         
         this.setupEventListeners();
@@ -41,6 +42,11 @@ class InputManager {
         });
         
         document.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });
+
+        document.addEventListener('wheel', (event) => {
+            this.mouse.wheelDelta = event.deltaY;
             event.preventDefault();
         });
     }
@@ -79,5 +85,11 @@ class InputManager {
     
     isMouseDown() {
         return this.mouse.isDown;
+    }
+
+    getWheelDelta() {
+        const delta = this.mouse.wheelDelta;
+        this.mouse.wheelDelta = 0;
+        return delta;
     }
 }

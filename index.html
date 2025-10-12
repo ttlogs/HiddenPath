@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тайная тропа в густой траве</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="container"></div>
+    <div id="ui">
+        <div class="title">🌿 ТАЙНАЯ ТРОПА 🌿</div>
+        <div class="stats" id="trailCounter">Следов оставлено: <span style="color: #9acd32">0</span></div>
+        <div class="stats" id="grassBent">Примято травы: <span style="color: #9acd32">0</span></div>
+        <div class="stats" id="visibility">Заметность: <span style="color: #32cd32">НИЗКАЯ</span></div>
+    </div>
+    <div id="instructions">
+        Прокладывайте невидимую тропу! Двигайтесь медленно и осторожно...<br>
+        Управление: WASD или Стрелки | ЛКМ - вращение камеры
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script src="js/core/SceneManager.js"></script>
+    <script src="js/core/InputManager.js"></script>
+    <script src="js/core/CameraController.js"></script>
+    
+    <script src="js/environment/GrassBlade.js"></script>
+    <script src="js/environment/GrassField.js"></script>
+    
+    <script src="js/player/Player.js"></script>
+    <script src="js/player/TrailSystem.js"></script>
+    
+    <script src="js/ui/UIManager.js"></script>
+    <script src="js/ui/StatsManager.js"></script>
+    
+    <script src="js/main.js"></script>
+</body>
+</html>

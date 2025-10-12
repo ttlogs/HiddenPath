@@ -1,0 +1,75 @@
+body { 
+    margin: 0; 
+    padding: 0; 
+    background: #1a1a2e;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#container { 
+    position: relative; 
+}
+
+#ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: white;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 15px;
+    border-radius: 10px;
+    z-index: 100;
+    border: 2px solid #4a9c5a;
+    min-width: 200px;
+}
+
+#instructions {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    border: 2px solid #4a9c5a;
+    backdrop-filter: blur(5px);
+    max-width: 400px;
+}
+
+.stats {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #4a9c5a;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+}
+
+canvas {
+    display: block;
+    cursor: grab;
+    width: 100%;
+    height: 100%;
+}
+
+canvas:active {
+    cursor: grabbing;
+}

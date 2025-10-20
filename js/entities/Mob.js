@@ -4,13 +4,17 @@ class Mob {
         this.mesh = this.createMesh();
         this.position = new THREE.Vector3();
         this.targetPosition = new THREE.Vector3();
-        this.speed = 0.02; // Уменьшим скорость
-        this.state = 'patrol';
-        this.visionRange = 6; // Уменьшим дистанцию зрения
+        this.visionRange = 6;
         this.chaseRange = 10;
         this.lastKnownPlayerPosition = new THREE.Vector3();
         this.patrolPoints = [];
         this.currentPatrolIndex = 0;
+        
+        // Пошаговая система
+        this.movePoints = 2;
+        this.remainingMoves = 2;
+        this.hasMoved = false;
+        this.isActive = false;
         
         this.init();
     }
@@ -41,7 +45,7 @@ class Mob {
         // Создаём случайные точки патрулирования
         for (let i = 0; i < 3; i++) {
             this.patrolPoints.push(new THREE.Vector3(
-                (Math.random() - 0.5) * 25, // Уменьшим область патрулирования
+                (Math.random() - 0.5) * 25,
                 0,
                 (Math.random() - 0.5) * 25
             ));
@@ -59,84 +63,100 @@ class Mob {
         this.targetPosition.copy(this.patrolPoints[this.currentPatrolIndex]);
     }
     
-    update(playerPosition, deltaTime) {
-        switch(this.state) {
-            case 'patrol':
-                this.updatePatrol(playerPosition);
-                break;
-            case 'chase':
-                this.updateChase(playerPosition);
-                break;
-            case 'return':
-                this.updateReturn();
-                break;
-        }
+    update(players) {
+        if (!this.isActive) return;
         
-        this.move();
-        this.mesh.position.copy(this.position);
+        // Ищем ближайшего игрока
+        const nearestPlayer = this.findNearestPlayer(players);
         
-        // Поворачиваем моба в направлении движения
-        if (this.targetPosition.clone().sub(this.position).length() > 0.1) {
-            const direction = this.targetPosition.clone().sub(this.position).normalize();
-            this.mesh.rotation.y = Math.atan2(direction.x, direction.z);
-        }
-    }
-    
-    updatePatrol(playerPosition) {
-        const distanceToPlayer = this.position.distanceTo(playerPosition);
-        
-        // Проверяем видимость игрока
-        if (distanceToPlayer < this.visionRange) {
-            this.state = 'chase';
-            this.lastKnownPlayerPosition.copy(playerPosition);
-            this.targetPosition.copy(playerPosition);
-            console.log('🚨 Моб заметил игрока!');
-        }
-        
-        // Достигли точки патрулирования - идём к следующей
-        if (this.position.distanceTo(this.targetPosition) < 1.5) {
-            this.setNextPatrolPoint();
-        }
-    }
-    
-    updateChase(playerPosition) {
-        const distanceToPlayer = this.position.distanceTo(playerPosition);
-        
-        if (distanceToPlayer < 2) {
-            // Поймали игрока!
-            this.onPlayerCaught();
-            return;
-        }
-        
-        if (distanceToPlayer < this.visionRange) {
-            this.lastKnownPlayerPosition.copy(playerPosition);
-            this.targetPosition.copy(playerPosition);
+        if (nearestPlayer && this.position.distanceTo(nearestPlayer.position) < this.visionRange) {
+            // Преследование игрока
+            this.chasePlayer(nearestPlayer);
         } else {
-            // Игрок скрылся из виду
-            if (this.position.distanceTo(this.lastKnownPlayerPosition) < 1.5) {
-                this.state = 'return';
-                this.setNextPatrolPoint();
-            } else {
-                this.targetPosition.copy(this.lastKnownPlayerPosition);
-            }
+            // Патрулирование
+            this.patrol();
         }
         
-        // Игрок слишком далеко - возвращаемся к патрулированию
-        if (distanceToPlayer > this.chaseRange) {
-            this.state = 'return';
+        this.executeMove();
+    }
+    
+    findNearestPlayer(players) {
+        let nearestPlayer = null;
+        let minDistance = Infinity;
+        
+        players.forEach(player => {
+            const distance = this.position.distanceTo(player.position);
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestPlayer = player;
+            }
+        });
+        
+        return nearestPlayer;
+    }
+    
+    chasePlayer(player) {
+        const direction = player.position.clone().sub(this.position).normalize();
+        this.targetPosition = this.position.clone().add(direction.multiplyScalar(2));
+        
+        // Проверяем валидность позиции
+        if (!this.isPositionValid(this.targetPosition)) {
+            this.targetPosition.copy(this.position);
+        }
+    }
+    
+    patrol() {
+        if (this.position.distanceTo(this.targetPosition) < 1.5) {
             this.setNextPatrolPoint();
         }
     }
     
-    updateReturn() {
-        if (this.position.distanceTo(this.targetPosition) < 1.5) {
-            this.state = 'patrol';
+    executeMove() {
+        if (this.hasMoved) {
+            this.position.copy(this.targetPosition);
+            this.mesh.position.copy(this.position);
+            this.hasMoved = false;
+            
+            // Анимация движения моба
+            this.animateMove();
         }
     }
     
-    move() {
-        const direction = this.targetPosition.clone().sub(this.position).normalize();
-        this.position.add(direction.multiplyScalar(this.speed));
+    animateMove() {
+        const startPos = this.mesh.position.clone();
+        const endPos = this.position.clone();
+        const duration = 300;
+        
+        const startTime = performance.now();
+        
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            this.mesh.position.lerpVectors(startPos, endPos, progress);
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                this.mesh.position.copy(endPos);
+            }
+        };
+        
+        requestAnimationFrame(animate);
+    }
+    
+    startTurn() {
+        this.isActive = true;
+        this.hasMoved = true;
+        this.remainingMoves = this.movePoints;
+    }
+    
+    endTurn() {
+        this.isActive = false;
+    }
+    
+    isPositionValid(position) {
+        return Math.abs(position.x) <= 18 && Math.abs(position.z) <= 18;
     }
     
     onPlayerCaught() {
@@ -153,6 +173,6 @@ class Mob {
     }
     
     getState() {
-        return this.state;
+        return this.hasMoved ? 'moved' : 'waiting';
     }
 }

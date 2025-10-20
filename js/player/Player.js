@@ -1,101 +1,203 @@
 class Player {
-    constructor() {
-        this.normalSpeed = 0.08;
-        this.slowSpeed = 0.03;
-        this.sprintSpeed = 0.15;
-        this.currentSpeed = 0;
-        this.radius = 0.2;
+    constructor(id, name = 'Игрок') {
+        this.id = id;
+        this.name = name;
         this.mesh = this.createMesh();
         this.position = new THREE.Vector3();
-        this.boundary = 19;
+        this.targetPosition = new THREE.Vector3();
+        this.boundary = 18;
         this.direction = new THREE.Vector3(0, 0, -1);
+        
+        // Пошаговая система
+        this.movePoints = 3;
+        this.remainingMoves = 3;
+        this.hasMoved = false;
+        this.isActive = false;
+        
+        // Сетка для отображения доступных ходов
+        this.moveGrid = new THREE.Group();
+        this.availableMoves = [];
+        
+        this.init();
     }
     
     createMesh() {
-        const geometry = new THREE.SphereGeometry(this.radius, 8, 8);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x228b22,
+        const geometry = new THREE.SphereGeometry(0.3, 8, 8);
+        const hue = Math.random();
+        const material = new THREE.MeshLambertMaterial({ 
+            color: new THREE.Color().setHSL(hue, 0.8, 0.5),
             transparent: true,
-            opacity: 0.3
+            opacity: 0.8
         });
         
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.y = 0.2;
+        mesh.position.y = 0.3;
         
-        const marker = new THREE.Mesh(
-            new THREE.SphereGeometry(0.1, 6, 6),
-            new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.1 })
-        );
-        mesh.add(marker);
+        // Подпись игрока
+        const textGeometry = new THREE.PlaneGeometry(1, 0.3);
+        const textMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide
+        });
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+        textMesh.position.y = 1.2;
+        textMesh.rotation.x = -Math.PI / 2;
+        mesh.add(textMesh);
         
         return mesh;
     }
     
-    update(inputManager, camera) {
-        const movement = inputManager.getMovementVector();
-        let moved = false;
+    init() {
+        // Начальная позиция в углу карты
+        this.position.set(
+            (Math.random() > 0.5 ? 1 : -1) * 15,
+            0,
+            (Math.random() > 0.5 ? 1 : -1) * 15
+        );
+        this.mesh.position.copy(this.position);
+        this.updateMoveGrid();
+    }
+    
+    // НОВАЯ логика: планирование хода
+    planMove(targetPosition) {
+        if (!this.isActive || this.hasMoved) return false;
         
-        if (inputManager.isKeyPressed('ShiftLeft')) {
-            this.currentSpeed = this.sprintSpeed;
-        } else if (inputManager.isKeyPressed('ControlLeft')) {
-            this.currentSpeed = this.slowSpeed;
-        } else {
-            this.currentSpeed = this.normalSpeed;
+        const distance = this.position.distanceTo(targetPosition);
+        const moveCost = Math.ceil(distance / 2);
+        
+        if (moveCost <= this.remainingMoves && this.isPositionValid(targetPosition)) {
+            this.targetPosition.copy(targetPosition);
+            this.remainingMoves -= moveCost;
+            this.hasMoved = true;
+            
+            console.log(`🎮 Игрок ${this.name} планирует ход на (${targetPosition.x.toFixed(1)}, ${targetPosition.z.toFixed(1)})`);
+            return true;
         }
         
-        if (movement.length() > 0) {
-            const cameraDirection = this.getCameraRelativeMovement(movement, camera);
-            
-            this.position.x += cameraDirection.x * this.currentSpeed;
-            this.position.z += cameraDirection.z * this.currentSpeed;
-            
-            if (cameraDirection.length() > 0.1) {
-                this.direction.copy(cameraDirection).normalize();
-            }
-            
-            this.applyBoundaries();
+        return false;
+    }
+    
+    // Выполнение запланированного хода
+    executeMove() {
+        if (this.hasMoved) {
+            this.position.copy(this.targetPosition);
             this.mesh.position.copy(this.position);
-            moved = true;
-        } else {
-            this.currentSpeed = 0;
+            this.updateMoveGrid();
+            
+            // Анимация движения
+            this.animateMove();
+            
+            return true;
         }
-        
-        return moved;
+        return false;
     }
     
-    getCameraRelativeMovement(movement, camera) {
-        const cameraDirection = new THREE.Vector3();
-        camera.getWorldDirection(cameraDirection);
-        cameraDirection.y = 0;
-        cameraDirection.normalize();
+    animateMove() {
+        const startPos = this.mesh.position.clone();
+        const endPos = this.position.clone();
+        const duration = 500;
         
-        const cameraRight = new THREE.Vector3();
-        cameraRight.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0));
+        const startTime = performance.now();
         
-        const result = new THREE.Vector3();
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            this.mesh.position.lerpVectors(startPos, endPos, progress);
+            this.mesh.position.y = 0.3 + Math.sin(progress * Math.PI) * 0.5;
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                this.mesh.position.copy(endPos);
+            }
+        };
         
-        if (movement.z !== 0) {
-            result.add(cameraDirection.clone().multiplyScalar(-movement.z));
-        }
-        
-        if (movement.x !== 0) {
-            result.add(cameraRight.clone().multiplyScalar(movement.x));
-        }
-        
-        return result.normalize();
+        requestAnimationFrame(animate);
     }
     
-    applyBoundaries() {
-        this.position.x = THREE.MathUtils.clamp(this.position.x, -this.boundary, this.boundary);
-        this.position.z = THREE.MathUtils.clamp(this.position.z, -this.boundary, this.boundary);
+    // Сброс состояния для нового хода
+    startTurn() {
+        this.isActive = true;
+        this.hasMoved = false;
+        this.remainingMoves = this.movePoints;
+        this.updateMoveGrid();
+        console.log(`🎮 Ход игрока ${this.name}, очков движения: ${this.remainingMoves}`);
     }
     
-    getCurrentSpeed() {
-        return this.currentSpeed;
+    endTurn() {
+        this.isActive = false;
+        this.hideMoveGrid();
+    }
+    
+    // Сетка доступных ходов
+    updateMoveGrid() {
+        this.hideMoveGrid();
+        
+        if (!this.isActive) return;
+        
+        const gridSize = 5;
+        const halfSize = Math.floor(gridSize / 2);
+        
+        for (let x = -halfSize; x <= halfSize; x++) {
+            for (let z = -halfSize; z <= halfSize; z++) {
+                if (x === 0 && z === 0) continue;
+                
+                const targetX = this.position.x + x * 2;
+                const targetZ = this.position.z + z * 2;
+                const targetPos = new THREE.Vector3(targetX, 0, targetZ);
+                
+                const distance = this.position.distanceTo(targetPos);
+                const moveCost = Math.ceil(distance / 2);
+                
+                if (moveCost <= this.remainingMoves && this.isPositionValid(targetPos)) {
+                    this.showMoveIndicator(targetPos, moveCost);
+                }
+            }
+        }
+    }
+    
+    showMoveIndicator(position, cost) {
+        const geometry = new THREE.CircleGeometry(0.8, 8);
+        const material = new THREE.MeshBasicMaterial({
+            color: cost <= 1 ? 0x00ff00 : cost === 2 ? 0xffff00 : 0xff8800,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide
+        });
+        
+        const indicator = new THREE.Mesh(geometry, material);
+        indicator.position.set(position.x, 0.05, position.z);
+        indicator.rotation.x = -Math.PI / 2;
+        
+        this.moveGrid.add(indicator);
+        this.availableMoves.push({
+            position: position,
+            cost: cost,
+            mesh: indicator
+        });
+    }
+    
+    hideMoveGrid() {
+        while (this.moveGrid.children.length > 0) {
+            this.moveGrid.remove(this.moveGrid.children[0]);
+        }
+        this.availableMoves = [];
+    }
+    
+    isPositionValid(position) {
+        return Math.abs(position.x) <= this.boundary && 
+               Math.abs(position.z) <= this.boundary;
     }
     
     getMesh() {
         return this.mesh;
+    }
+    
+    getMoveGrid() {
+        return this.moveGrid;
     }
     
     getPosition() {
@@ -104,5 +206,9 @@ class Player {
     
     getDirection() {
         return this.direction.clone();
+    }
+    
+    didActuallyMove() {
+        return this.hasMoved;
     }
 }

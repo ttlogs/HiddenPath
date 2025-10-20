@@ -72,6 +72,13 @@ class GrassField {
         return restoredCount;
     }
     
+    animateWind() {
+        const time = Date.now();
+        this.grassBlades.forEach(grassBlade => {
+            grassBlade.animateWind(time);
+        });
+    }
+    
     getGroup() {
         return this.group;
     }

@@ -3,7 +3,7 @@ class MobManager {
         this.mobs = [];
         this.group = new THREE.Group();
         this.spawnTimer = 0;
-        this.maxMobs = 3; // Уменьшим для начала
+        this.maxMobs = 3;
     }
     
     spawnMob(type = 'guard') {
@@ -16,17 +16,30 @@ class MobManager {
         console.log(`👹 Создан моб ${type}. Всего мобов: ${this.mobs.length}`);
     }
     
-    update(playerPosition, deltaTime) {
-        // Спавн новых мобов (упростим логику времени)
-        this.spawnTimer += deltaTime;
-        if (this.spawnTimer > 5000 && this.mobs.length < this.maxMobs) {
-            this.spawnMob();
-            this.spawnTimer = 0;
-        }
-        
-        // Обновляем всех мобов
+    startTurn(players) {
         this.mobs.forEach(mob => {
-            mob.update(playerPosition, 16); // Фиксированный deltaTime для простоты
+            mob.startTurn();
+            mob.update(players);
+        });
+    }
+    
+    update(players) {
+        this.mobs.forEach(mob => {
+            mob.update(players);
+        });
+        
+        // Проверяем столкновения с игроками
+        this.checkCollisions(players);
+    }
+    
+    checkCollisions(players) {
+        players.forEach(player => {
+            this.mobs.forEach(mob => {
+                const distance = player.getPosition().distanceTo(mob.getPosition());
+                if (distance < 1.5) {
+                    mob.onPlayerCaught();
+                }
+            });
         });
     }
     
@@ -36,5 +49,13 @@ class MobManager {
     
     getMobs() {
         return this.mobs;
+    }
+    
+    removeMob(mob) {
+        const index = this.mobs.indexOf(mob);
+        if (index > -1) {
+            this.group.remove(mob.getMesh());
+            this.mobs.splice(index, 1);
+        }
     }
 }

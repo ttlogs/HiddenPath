@@ -41,12 +41,12 @@ class InputManager {
             }
         });
         
-        document.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
-        });
-
         document.addEventListener('wheel', (event) => {
             this.mouse.wheelDelta = event.deltaY;
+            event.preventDefault();
+        });
+        
+        document.addEventListener('contextmenu', (event) => {
             event.preventDefault();
         });
     }
@@ -83,13 +83,17 @@ class InputManager {
         this.mouse.deltaY = 0;
     }
     
-    isMouseDown() {
-        return this.mouse.isDown;
-    }
-
     getWheelDelta() {
         const delta = this.mouse.wheelDelta;
         this.mouse.wheelDelta = 0;
         return delta;
+    }
+    
+    isMouseDown() {
+        return this.mouse.isDown;
+    }
+    
+    getMousePosition() {
+        return new THREE.Vector2(this.mouse.x, this.mouse.y);
     }
 }

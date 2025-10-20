@@ -1,16 +1,84 @@
 class Game {
     constructor() {
+        console.log('🚀 Конструктор Game запущен');
+
+        // Проверяем что классы загружены
+        if (typeof Player === 'undefined') {
+            console.error('❌ Класс Player не загружен!');
+            this.showError('Player class not loaded');
+            return;
+        }
+
+        if (typeof SceneManager === 'undefined') {
+            console.error('❌ Класс SceneManager не загружен!');
+            this.showError('SceneManager class not loaded');
+            return;
+        }
+
+        // Инициализируем базовые компоненты СРАЗУ
         this.sceneManager = new SceneManager();
         this.inputManager = new InputManager();
         this.uiManager = new UIManager();
         this.statsManager = new StatsManager();
+
+        // Создаем игровые объекты СРАЗУ
+        this.initializeGameObjects();
+
         this.firebaseManager = new FirebaseManager();
         this.remotePlayers = new Map();
-        this.gameState = 'connecting';
+        this.gameState = 'playing'; // Сразу играем
         this.lastTime = performance.now();
 
         this.setupEventListeners();
-        this.init();
+
+        console.log('✅ Все игровые объекты созданы, запускаем анимацию');
+        this.animate();
+    }
+
+    initializeGameObjects() {
+        console.log('🔄 Инициализация игровых объектов...');
+
+        try {
+            // Создаем все игровые объекты
+            this.grassField = new GrassField(40, 8000);
+            this.player = new Player(); // Должно работать теперь
+            this.trailSystem = new TrailSystem(2000);
+            this.mobManager = new MobManager();
+
+            // Проверяем что player создан правильно
+            if (!this.player || typeof this.player.update !== 'function') {
+                throw new Error('Player не инициализирован правильно');
+            }
+
+            this.cameraController = new CameraController(
+                this.sceneManager.camera,
+                this.player
+            );
+
+            // Добавляем в сцену
+            this.sceneManager.add(this.grassField.getGroup());
+            this.sceneManager.add(this.player.getMesh());
+            this.sceneManager.add(this.trailSystem.getMesh());
+            this.sceneManager.add(this.mobManager.getGroup());
+
+            this.createMapBoundaries();
+            this.cameraController.ensureSafePosition();
+
+            // Спавним мобов
+            this.mobManager.spawnMob('guard');
+            setTimeout(() => this.mobManager.spawnMob('archer'), 2000);
+
+            console.log('✅ Игровые объекты инициализированы:', {
+                player: !!this.player,
+                grassField: !!this.grassField,
+                mobManager: !!this.mobManager,
+                cameraController: !!this.cameraController
+            });
+
+        } catch (error) {
+            console.error('❌ Ошибка инициализации игровых объектов:', error);
+            this.showError('Ошибка создания игрового мира: ' + error.message);
+        }
     }
 
     setupEventListeners() {
@@ -24,128 +92,53 @@ class Game {
             }
         });
 
-        // Firebase события
-        document.addEventListener('remotePlayerJoined', (event) => {
-            this.addRemotePlayer(event.detail);
-        });
+        // Firebase события (подписываемся позже)
+        setTimeout(() => {
+            document.addEventListener('remotePlayerJoined', (event) => {
+                this.addRemotePlayer(event.detail);
+            });
 
-        document.addEventListener('remotePlayerUpdated', (event) => {
-            this.updateRemotePlayer(event.detail);
-        });
+            document.addEventListener('remotePlayerUpdated', (event) => {
+                this.updateRemotePlayer(event.detail);
+            });
 
-        document.addEventListener('remotePlayerLeft', (event) => {
-            this.removeRemotePlayer(event.detail.playerId);
-        });
+            document.addEventListener('remotePlayerLeft', (event) => {
+                this.removeRemotePlayer(event.detail.playerId);
+            });
 
-        document.addEventListener('remoteChatMessage', (event) => {
-            this.uiManager.showChatMessage(
-                event.detail.message,
-                'player',
-                event.detail.playerName
-            );
-        });
+            document.addEventListener('remoteChatMessage', (event) => {
+                this.uiManager.showChatMessage(
+                    event.detail.message,
+                    'player',
+                    event.detail.playerName
+                );
+            });
+        }, 1000);
     }
 
-    async init() {
-        this.showConnectionScreen();
-
-        try {
-            const connected = await this.firebaseManager.connect();
-            if (connected) {
-                this.gameState = 'playing';
-                this.hideConnectionScreen();
-                this.initializeGameObjects();
-            } else {
-                this.showConnectionError();
-                return;
-            }
-        } catch (error) {
-            console.error('Ошибка подключения:', error);
-            this.showConnectionError();
-            return;
-        }
-
-        console.log('🎮 Мультиплеерная игра запущена (Firebase)!');
-
-        this.lastTime = performance.now();
-        this.animate();
-    }
-
-    initializeGameObjects() {
-        this.grassField = new GrassField(40, 8000);
-        this.player = new Player();
-        this.trailSystem = new TrailSystem(2000);
-        this.mobManager = new MobManager();
-        this.cameraController = new CameraController(
-            this.sceneManager.camera,
-            this.player
-        );
-
-        this.sceneManager.add(this.grassField.getGroup());
-        this.sceneManager.add(this.player.getMesh());
-        this.sceneManager.add(this.trailSystem.getMesh());
-        this.sceneManager.add(this.mobManager.getGroup());
-
-        this.createMapBoundaries();
-        this.cameraController.ensureSafePosition();
-
-        this.mobManager.spawnMob('guard');
-        setTimeout(() => this.mobManager.spawnMob('archer'), 2000);
-    }
-
-    showConnectionScreen() {
-        const connectionDiv = document.createElement('div');
-        connectionDiv.id = 'connectionScreen';
-        connectionDiv.style.cssText = `
+    showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = `
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.9);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,0,0,0.9);
             color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
             z-index: 10000;
             font-family: Arial, sans-serif;
         `;
-        connectionDiv.innerHTML = `
-            <h1>🌿 Тайная Тропа - Мультиплеер</h1>
-            <div style="margin: 20px 0; font-size: 18px;">
-                <div id="connectionStatus">🔄 Подключение к Firebase...</div>
-            </div>
-            <div style="margin-top: 20px; font-size: 14px; color: #aaa;">
-                Откройте эту страницу в другом окне браузера для игры вместе!
-            </div>
+        errorDiv.innerHTML = `
+            <h3>❌ Ошибка загрузки игры</h3>
+            <p>${message}</p>
+            <button onclick="location.reload()" style="margin-top: 10px; padding: 5px 10px;">
+                Перезагрузить
+            </button>
         `;
-        document.body.appendChild(connectionDiv);
-    }
-
-    hideConnectionScreen() {
-        const connectionDiv = document.getElementById('connectionScreen');
-        if (connectionDiv) {
-            connectionDiv.remove();
-        }
-    }
-
-    showConnectionError() {
-        const connectionDiv = document.getElementById('connectionScreen');
-        if (connectionDiv) {
-            connectionDiv.innerHTML = `
-                <h1>🌿 Тайная Тропа - Мультиплеер</h1>
-                <div style="margin: 20px 0; font-size: 18px; color: #ff4444;">
-                    ❌ Не удалось подключиться к Firebase
-                </div>
-                <button onclick="location.reload()" style="padding: 10px 20px; margin: 10px;">
-                    Попробовать снова
-                </button>
-                <div style="margin-top: 20px; font-size: 14px; color: #aaa;">
-                    Проверьте настройки Firebase в коде
-                </div>
-            `;
-        }
+        document.body.appendChild(errorDiv);
     }
 
     animate() {
@@ -156,11 +149,18 @@ class Game {
         this.lastTime = currentTime;
 
         if (this.gameState === 'playing') {
-            if (!this.player || typeof this.player.update !== 'function') {
-                console.error('❌ Player не инициализирован');
+            // Проверяем что player существует и имеет метод update
+            if (!this.player) {
+                console.error('❌ Player не существует!');
                 return;
             }
 
+            if (typeof this.player.update !== 'function') {
+                console.error('❌ Player.update не является функцией!', this.player);
+                return;
+            }
+
+            // Обновляем игрока
             const playerMoved = this.player.update(this.inputManager, this.sceneManager.camera);
             let bentResult = { total: 0, fresh: 0 };
 
@@ -173,6 +173,7 @@ class Game {
                 const trailCount = this.trailSystem.addPoint(this.player.getPosition());
                 this.statsManager.setTrailCount(trailCount);
 
+                // Отправляем в Firebase если подключены
                 if (this.firebaseManager && this.firebaseManager.isConnected()) {
                     this.firebaseManager.sendPlayerUpdate(
                         this.player.getPosition(),
@@ -181,11 +182,9 @@ class Game {
                 }
             }
 
-            if (this.grassField) {
-                this.grassField.restoreGrass();
-            }
-
-            if (this.mobManager) {
+            // Обновляем игру
+            this.grassField.restoreGrass();
+            if (this.mobManager && this.player) {
                 this.mobManager.update(this.player.getPosition(), deltaTime);
             }
 
@@ -194,29 +193,26 @@ class Game {
                 bentResult.fresh
             );
 
-            if (this.cameraController) {
-                this.cameraController.update(this.inputManager);
-                this.cameraController.ensureSafePosition();
-            }
-
+            this.cameraController.update(this.inputManager);
+            this.cameraController.ensureSafePosition();
             this.updateUI();
         }
 
-        if (this.sceneManager) {
-            this.sceneManager.render();
-        }
+        this.sceneManager.render();
         this.frameCount = (this.frameCount || 0) + 1;
     }
 
     addRemotePlayer(playerData) {
-        const remotePlayer = new RemotePlayer(playerData);
-        this.remotePlayers.set(playerData.id, remotePlayer);
+        if (!this.remotePlayers.has(playerData.id)) {
+            const remotePlayer = new RemotePlayer(playerData);
+            this.remotePlayers.set(playerData.id, remotePlayer);
 
-        this.sceneManager.add(remotePlayer.getMesh());
-        this.sceneManager.add(remotePlayer.getTrailMesh());
+            this.sceneManager.add(remotePlayer.getMesh());
+            this.sceneManager.add(remotePlayer.getTrailMesh());
 
-        console.log(`➕ Добавлен удаленный игрок ${playerData.id}`);
-        this.uiManager.showChatMessage(`Игрок ${playerData.id.substr(7, 4)} присоединился`, 'system');
+            console.log(`➕ Добавлен удаленный игрок ${playerData.id}`);
+            this.uiManager.showChatMessage(`Игрок ${playerData.id.substr(7, 4)} присоединился`, 'system');
+        }
     }
 
     updateRemotePlayer(playerData) {
@@ -309,6 +305,13 @@ class Game {
     }
 }
 
+// Запускаем игру когда всё загружено
 window.addEventListener('DOMContentLoaded', () => {
-    new Game();
+    console.log('📄 DOM загружен, запускаем игру...');
+
+    // Даем время всем скриптам загрузиться
+    setTimeout(() => {
+        console.log('🎮 Запуск игры...');
+        new Game();
+    }, 100);
 });

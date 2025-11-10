@@ -1,0 +1,9 @@
+# Firebase configs
+js/config/firebase-config.js
+firebase-config.js
+.env
+.env.local
+
+# Keys
+*.key
+*.pem

@@ -1,9 +1,31 @@
-# Firebase configs
-js/config/firebase-config.js
-firebase-config.js
+# Firebase и сборка
+dist/
 .env
-.env.local
+deploy-setup.js
+test-config.js
+js/config.js
 
-# Keys
-*.key
-*.pem
+# Временные файлы и папки
+server/
+
+# Node.js
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Локальные конфиги
+js/IPManager.js
+js/network/
+
+# Build directories
+dist/
+build/
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+.gigaide/

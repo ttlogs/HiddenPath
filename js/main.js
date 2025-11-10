@@ -1,17 +1,12 @@
 class Game {
     constructor() {
         console.log('🚀 Конструктор Game запущен');
+        this.grassField = null;
 
         // Проверяем что классы загружены
         if (typeof Player === 'undefined') {
             console.error('❌ Класс Player не загружен!');
             this.showError('Player class not loaded');
-            return;
-        }
-
-        if (typeof SceneManager === 'undefined') {
-            console.error('❌ Класс SceneManager не загружен!');
-            this.showError('SceneManager class not loaded');
             return;
         }
 
@@ -21,17 +16,28 @@ class Game {
         this.uiManager = new UIManager();
         this.statsManager = new StatsManager();
 
-        // Создаем игровые объекты СРАЗУ
-        this.initializeGameObjects();
+        // Пытаемся создать FirebaseManager (даже если он не загрузится)
+        try {
+            this.firebaseManager = new FirebaseManager();
+            this.remotePlayers = new Map();
+            console.log('✅ FirebaseManager создан');
+        } catch (error) {
+            console.warn('⚠️ FirebaseManager не загружен, продолжаем без мультиплеера');
+            this.firebaseManager = null;
+            this.remotePlayers = new Map();
+        }
 
-        this.firebaseManager = new FirebaseManager();
-        this.remotePlayers = new Map();
-        this.gameState = 'playing'; // Сразу играем
+        this.gameState = 'initializing';
         this.lastTime = performance.now();
 
+        // Создаем игровые объекты СРАЗУ
+        this.initializeGameObjects();
         this.setupEventListeners();
 
-        console.log('✅ Все игровые объекты созданы, запускаем анимацию');
+        // Пытаемся подключиться к Firebase (не блокируем игру)
+        this.initializeFirebase();
+
+        console.log('✅ Все игровые объекты созданы');
         this.animate();
     }
 
@@ -39,16 +45,10 @@ class Game {
         console.log('🔄 Инициализация игровых объектов...');
 
         try {
-            // Создаем все игровые объекты
             this.grassField = new GrassField(40, 8000);
-            this.player = new Player(); // Должно работать теперь
+            this.player = new Player();
             this.trailSystem = new TrailSystem(2000);
             this.mobManager = new MobManager();
-
-            // Проверяем что player создан правильно
-            if (!this.player || typeof this.player.update !== 'function') {
-                throw new Error('Player не инициализирован правильно');
-            }
 
             this.cameraController = new CameraController(
                 this.sceneManager.camera,
@@ -68,16 +68,54 @@ class Game {
             this.mobManager.spawnMob('guard');
             setTimeout(() => this.mobManager.spawnMob('archer'), 2000);
 
-            console.log('✅ Игровые объекты инициализированы:', {
-                player: !!this.player,
-                grassField: !!this.grassField,
-                mobManager: !!this.mobManager,
-                cameraController: !!this.cameraController
-            });
+            this.gameState = 'playing';
 
+            console.log('✅ Игровые объекты инициализированы');
         } catch (error) {
-            console.error('❌ Ошибка инициализации игровых объектов:', error);
+            console.error('❌ Ошибка инициализации:', error);
             this.showError('Ошибка создания игрового мира: ' + error.message);
+        }
+    }
+
+    async initializeFirebase() {
+        if (!this.firebaseManager) {
+            console.log('⚠️ FirebaseManager недоступен, пропускаем подключение');
+            this.uiManager.showFirebaseStatus('Мультиплеер отключен', 'error');
+            return;
+        }
+
+        try {
+            const connected = await this.firebaseManager.connect();
+            if (connected) {
+                console.log('🎮 Мультиплеер активирован!');
+                this.uiManager.showFirebaseStatus('Мультиплеер подключен', 'success');
+
+                // Сразу проверяем существующих игроков
+                setTimeout(() => {
+                    this.checkExistingPlayers();
+                }, 2000);
+            } else {
+                console.log('⚠️ Firebase не подключен, играем в одиночку');
+                this.uiManager.showFirebaseStatus('Одиночный режим', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Ошибка инициализации Firebase:', error);
+            this.uiManager.showFirebaseStatus('Ошибка подключения', 'error');
+        }
+    }
+
+    checkExistingPlayers() {
+        if (this.firebaseManager && this.firebaseManager.players) {
+            console.log('🔍 Проверяем существующих игроков...');
+            this.firebaseManager.players.forEach((playerData, playerId) => {
+                if (playerId !== this.firebaseManager.playerId) {
+                    console.log(`➕ Добавляем существующего игрока: ${playerId}`);
+                    this.addRemotePlayer({
+                        id: playerId,
+                        ...playerData
+                    });
+                }
+            });
         }
     }
 
@@ -89,31 +127,64 @@ class Game {
         document.addEventListener('sendChatMessage', (event) => {
             if (this.firebaseManager && this.firebaseManager.isConnected()) {
                 this.firebaseManager.sendChatMessage(event.detail);
+            } else {
+                this.uiManager.showChatMessage(event.detail, 'player', 'Вы');
             }
         });
 
-        // Firebase события (подписываемся позже)
+        // Добавляем отладку Firebase событий
+        document.addEventListener('remotePlayerJoined', (event) => {
+            console.log('🎯 MAIN: remotePlayerJoined', event.detail);
+            this.addRemotePlayer(event.detail);
+        });
+
+        document.addEventListener('remotePlayerUpdated', (event) => {
+            console.log('🎯 MAIN: remotePlayerUpdated', event.detail);
+            this.updateRemotePlayer(event.detail);
+        });
+
+        document.addEventListener('remotePlayerLeft', (event) => {
+            console.log('🎯 MAIN: remotePlayerLeft', event.detail);
+            this.removeRemotePlayer(event.detail.playerId);
+        });
+
+        document.addEventListener('remoteChatMessage', (event) => {
+            console.log('🎯 MAIN: remoteChatMessage', event.detail);
+            this.uiManager.showChatMessage(
+                event.detail.message,
+                'player',
+                event.detail.playerName
+            );
+        });
+        document.addEventListener('beforeunload', () => {
+            if (this.firebaseManager) {
+                this.firebaseManager.destroy();
+            }
+        });
+    }
+
+    showFirebaseStatus(message) {
+        const statusDiv = document.createElement('div');
+        statusDiv.style.cssText = `
+            position: absolute;
+            top: 120px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 100;
+        `;
+        statusDiv.textContent = message;
+        statusDiv.id = 'firebaseStatus';
+        document.body.appendChild(statusDiv);
+
         setTimeout(() => {
-            document.addEventListener('remotePlayerJoined', (event) => {
-                this.addRemotePlayer(event.detail);
-            });
-
-            document.addEventListener('remotePlayerUpdated', (event) => {
-                this.updateRemotePlayer(event.detail);
-            });
-
-            document.addEventListener('remotePlayerLeft', (event) => {
-                this.removeRemotePlayer(event.detail.playerId);
-            });
-
-            document.addEventListener('remoteChatMessage', (event) => {
-                this.uiManager.showChatMessage(
-                    event.detail.message,
-                    'player',
-                    event.detail.playerName
-                );
-            });
-        }, 1000);
+            if (document.body.contains(statusDiv)) {
+                document.body.removeChild(statusDiv);
+            }
+        }, 3000);
     }
 
     showError(message) {
@@ -149,23 +220,20 @@ class Game {
         this.lastTime = currentTime;
 
         if (this.gameState === 'playing') {
-            // Проверяем что player существует и имеет метод update
-            if (!this.player) {
-                console.error('❌ Player не существует!');
-                return;
-            }
-
-            if (typeof this.player.update !== 'function') {
-                console.error('❌ Player.update не является функцией!', this.player);
-                return;
-            }
-
             // Обновляем игрока
             const playerMoved = this.player.update(this.inputManager, this.sceneManager.camera);
             let bentResult = { total: 0, fresh: 0 };
 
             if (playerMoved && this.player.didActuallyMove()) {
-                bentResult = this.grassField.bendGrassAround(this.player.getPosition());
+                // Обновляем позицию локального игрока в системе травы
+                this.grassField.updatePlayerPosition(
+                    this.firebaseManager ? this.firebaseManager.getPlayerId() : 'local_player',
+                    this.player.getPosition() // это уже THREE.Vector3
+                );
+
+                // Приминаем траву вокруг ВСЕХ игроков
+                bentResult = this.grassField.bendGrassAroundAllPlayers();
+
                 if (bentResult.total > 0) {
                     this.statsManager.addBentGrass(bentResult.total);
                 }
@@ -180,13 +248,20 @@ class Game {
                         this.player.getDirection()
                     );
                 }
+            } else if (this.grassField) {
+                // Даже если не двигаемся, обновляем позицию для системы травы
+                this.grassField.updatePlayerPosition(
+                    this.firebaseManager ? this.firebaseManager.getPlayerId() : 'local_player',
+                    this.player.getPosition()
+                );
+
+                // Все равно приминаем траву вокруг всех игроков
+                bentResult = this.grassField.bendGrassAroundAllPlayers();
             }
 
             // Обновляем игру
             this.grassField.restoreGrass();
-            if (this.mobManager && this.player) {
-                this.mobManager.update(this.player.getPosition(), deltaTime);
-            }
+            this.mobManager.update(this.player.getPosition(), deltaTime);
 
             const currentVisibility = this.statsManager.calculateVisibility(
                 this.player.didActuallyMove() ? this.player.getCurrentSpeed() : 0,
@@ -203,26 +278,58 @@ class Game {
     }
 
     addRemotePlayer(playerData) {
-        if (!this.remotePlayers.has(playerData.id)) {
-            const remotePlayer = new RemotePlayer(playerData);
-            this.remotePlayers.set(playerData.id, remotePlayer);
+        console.log('🎯 MAIN: Добавление удаленного игрока', playerData.id);
 
-            this.sceneManager.add(remotePlayer.getMesh());
-            this.sceneManager.add(remotePlayer.getTrailMesh());
+        const remotePlayer = new RemotePlayer(playerData);
+        this.remotePlayers.set(playerData.id, remotePlayer);
 
-            console.log(`➕ Добавлен удаленный игрок ${playerData.id}`);
-            this.uiManager.showChatMessage(`Игрок ${playerData.id.substr(7, 4)} присоединился`, 'system');
+        this.sceneManager.add(remotePlayer.getMesh());
+        this.sceneManager.add(remotePlayer.getTrailMesh());
+
+        // ДОБАВЛЯЕМ: регистрируем удаленного игрока в системе травы
+        if (this.grassField && playerData.position) {
+            // Убеждаемся, что позиция корректна
+            const position = playerData.position;
+            if (typeof position.x === 'number' && typeof position.z === 'number') {
+                this.grassField.updatePlayerPosition(playerData.id, position);
+            } else {
+                console.warn('⚠️ Некорректная начальная позиция удаленного игрока:', playerData.id, position);
+            }
         }
+
+        console.log(`➕ Добавлен удаленный игрок ${playerData.id}`);
+        this.uiManager.showChatMessage(`Игрок ${playerData.id.substr(7, 6)} присоединился`, 'system');
+
+        // Обновляем счетчик игроков
+        this.uiManager.updatePlayersCount(this.remotePlayers.size + 1);
+        this.uiManager.showFirebaseStatus(`Игроков: ${this.remotePlayers.size + 1}`, 'info');
     }
 
     updateRemotePlayer(playerData) {
         const remotePlayer = this.remotePlayers.get(playerData.id);
         if (remotePlayer) {
             remotePlayer.update(playerData.position, playerData.direction);
+
+            // ДОБАВЛЯЕМ: обновляем позицию в системе травы
+            if (this.grassField && playerData.position) {
+                // Убеждаемся, что позиция корректна
+                const position = playerData.position;
+                if (typeof position.x === 'number' && typeof position.z === 'number') {
+                    this.grassField.updatePlayerPosition(playerData.id, position);
+                } else {
+                    console.warn('⚠️ Некорректная позиция удаленного игрока:', playerData.id, position);
+                }
+            }
+        } else {
+            // Если игрок не найден, но пришли данные - возможно нужно создать
+            console.log('🔄 Игрок не найден, создаем нового:', playerData.id);
+            this.addRemotePlayer(playerData);
         }
     }
 
     removeRemotePlayer(playerId) {
+        console.log('🎯 MAIN: Удаление игрока', playerId);
+
         const remotePlayer = this.remotePlayers.get(playerId);
         if (remotePlayer) {
             this.sceneManager.remove(remotePlayer.getMesh());
@@ -230,8 +337,16 @@ class Game {
             remotePlayer.destroy();
             this.remotePlayers.delete(playerId);
 
+            // ДОБАВЛЯЕМ: удаляем из системы травы
+            if (this.grassField) {
+                this.grassField.removePlayer(playerId);
+            }
+
             console.log(`➖ Удален игрок ${playerId}`);
-            this.uiManager.showChatMessage(`Игрок ${playerId.substr(7, 4)} вышел`, 'system');
+            this.uiManager.showChatMessage(`Игрок ${playerId.substr(7, 6)} вышел`, 'system');
+
+            // Обновляем счетчик игроков
+            this.uiManager.updatePlayersCount(this.remotePlayers.size + 1);
         }
     }
 
@@ -271,6 +386,17 @@ class Game {
         this.uiManager.updateVisibility(stats.visibility);
         this.uiManager.updatePlayersOnline(playersOnline);
 
+        // Отладочная информация Firebase
+        if (this.firebaseManager) {
+            this.uiManager.showFirebaseDebugInfo(this.firebaseManager.players);
+        }
+
+        // ДОБАВЛЯЕМ: отладочная информация о системе травы
+        if (this.grassField && this.frameCount % 60 === 0) { // Каждую секунду
+            const grassDebug = this.grassField.getDebugInfo();
+            console.log('🌿 Grass System Debug:', grassDebug);
+        }
+
         let mobsElement = document.getElementById('mobsCount');
         if (!mobsElement) {
             mobsElement = document.createElement('div');
@@ -308,8 +434,6 @@ class Game {
 // Запускаем игру когда всё загружено
 window.addEventListener('DOMContentLoaded', () => {
     console.log('📄 DOM загружен, запускаем игру...');
-
-    // Даем время всем скриптам загрузиться
     setTimeout(() => {
         console.log('🎮 Запуск игры...');
         new Game();

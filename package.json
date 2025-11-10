@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "dev": "http-server -p 8080",
+    "build": "node deploy-setup.js",
+    "test:config": "node test-config.js",
+    "deploy": "npm run build && npm run test:config && gh-pages -d dist",
+    "setup-deploy": "npm install gh-pages && npm run build"
+  }
+}

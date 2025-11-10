@@ -6,9 +6,10 @@
     <title>Тайная тропа - Мультиплеер (Firebase)</title>
     <link rel="stylesheet" href="css/style.css">
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK ДОЛЖНЫ БЫТЬ ПЕРВЫМИ -->
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <script src="js/config.js"></script>
 </head>
 <body>
 <div id="container"></div>
@@ -26,26 +27,32 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
+<!-- Core -->
 <script src="js/core/SceneManager.js"></script>
 <script src="js/core/InputManager.js"></script>
 <script src="js/core/CameraController.js"></script>
 
+<!-- Environment -->
 <script src="js/environment/GrassBlade.js"></script>
 <script src="js/environment/GrassField.js"></script>
 
+<!-- Player -->
 <script src="js/player/Player.js"></script>
 <script src="js/player/TrailSystem.js"></script>
 
-<!-- Firebase вместо WebSocket -->
+<!-- Network -->
 <script src="js/network/FirebaseManager.js"></script>
 <script src="js/entities/RemotePlayer.js"></script>
 
+<!-- Entities -->
 <script src="js/entities/Mob.js"></script>
 <script src="js/entities/MobManager.js"></script>
 
+<!-- UI -->
 <script src="js/ui/UIManager.js"></script>
 <script src="js/ui/StatsManager.js"></script>
 
+<!-- Main LAST -->
 <script src="js/main.js"></script>
 </body>
 </html>

@@ -1,96 +1,86 @@
 class RemotePlayer {
     constructor(playerData) {
+        console.log('👥 Создание удаленного игрока:', playerData);
+
         this.id = playerData.id;
         this.position = new THREE.Vector3(
-            playerData.position.x,
-            playerData.position.y,
-            playerData.position.z
+            playerData.position?.x || (Math.random() - 0.5) * 10,
+            playerData.position?.y || 0.2,
+            playerData.position?.z || (Math.random() - 0.5) * 10
         );
-        this.direction = new THREE.Vector3(
-            playerData.direction.x,
-            playerData.direction.y,
-            playerData.direction.z
-        );
-        this.color = playerData.color;
-        this.mesh = this.createMesh();
-        this.trailSystem = new TrailSystem(500);
-    }
-    
-    createMesh() {
-        const geometry = new THREE.SphereGeometry(0.3, 12, 12);
-        const material = new THREE.MeshBasicMaterial({ 
-            color: this.color,
+
+        // Сделаем игрока более заметным
+        const geometry = new THREE.SphereGeometry(0.5, 16, 16); // Увеличили размер
+        const material = new THREE.MeshBasicMaterial({
+            color: playerData.color || 0xff6b6b,
             transparent: true,
-            opacity: 0.7
+            opacity: 0.9 // Сделали менее прозрачным
         });
-        
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.copy(this.position);
-        
-        // Добавляем имя игрока
-        const nameLabel = this.createNameLabel();
-        mesh.add(nameLabel);
-        
-        return mesh;
+
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.position.copy(this.position);
+
+        // Добавим имя над игроком
+        this.addNameLabel(playerData.id);
+
+        // Система следов
+        this.trailSystem = new TrailSystem(500);
+
+        console.log('✅ Удаленный игрок создан:', this.id, this.position);
     }
-    
-    createNameLabel() {
+
+    addNameLabel(playerId) {
+        // Простая текстура с именем
         const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 32;
+        canvas.width = 256;
+        canvas.height = 64;
         const context = canvas.getContext('2d');
-        
-        context.fillStyle = 'rgba(0,0,0,0.5)';
+
+        // Фон
+        context.fillStyle = 'rgba(0, 0, 0, 0.7)';
         context.fillRect(0, 0, canvas.width, canvas.height);
-        
-        context.font = 'bold 14px Arial';
+
+        // Текст
+        context.font = 'bold 24px Arial';
         context.fillStyle = 'white';
         context.textAlign = 'center';
-        context.fillText(`Игрок ${this.id}`, canvas.width/2, 20);
-        
+        context.fillText(`Игрок ${playerId.substr(7, 6)}`, canvas.width/2, 40);
+
         const texture = new THREE.CanvasTexture(canvas);
-        const material = new THREE.SpriteMaterial({ 
+        const material = new THREE.SpriteMaterial({
             map: texture,
             transparent: true
         });
-        
+
         const sprite = new THREE.Sprite(material);
-        sprite.scale.set(2, 0.5, 1);
-        sprite.position.y = 1.2;
-        
-        return sprite;
+        sprite.scale.set(3, 0.8, 1);
+        sprite.position.y = 1.5; // Над головой игрока
+
+        this.mesh.add(sprite);
     }
-    
+
     update(position, direction) {
-        // Плавное перемещение
-        this.position.lerp(new THREE.Vector3(
-            position.x,
-            position.y,
-            position.z
-        ), 0.3);
-        
-        this.direction.copy(new THREE.Vector3(
-            direction.x,
-            direction.y,
-            direction.z
-        ));
-        
+        console.log(`🔄 Обновление игрока ${this.id}:`, position);
+
+        this.position.set(position.x, position.y, position.z);
         this.mesh.position.copy(this.position);
-        
+
         // Добавляем след
         this.trailSystem.addPoint(this.position.clone());
     }
-    
+
     getMesh() {
         return this.mesh;
     }
-    
+
     getTrailMesh() {
         return this.trailSystem.getMesh();
     }
-    
+
     destroy() {
-        // Очистка ресурсов
-        this.trailSystem.clear();
+        console.log(`🗑️ Удаление игрока ${this.id}`);
+        if (this.trailSystem) {
+            this.trailSystem.clear();
+        }
     }
 }

@@ -91,8 +91,8 @@ function buildForProduction() {
     console.log('  Project ID:', config.FIREBASE_PROJECT_ID);
 
     // Читаем шаблон конфига
-    console.log('📁 Чтение шаблона из:', path.join(__dirname, 'js', 'config.js'));
-    const configTemplate = fs.readFileSync(path.join(__dirname, 'js', 'config.js'), 'utf8');
+    console.log('📁 Чтение шаблона из:', path.join(__dirname, 'js', 'config.template.js'));
+    const configTemplate = fs.readFileSync(path.join(__dirname, 'js', 'config.template.js'), 'utf8');
     console.log('✅ Шаблон прочитан успешно');
 
     // Заменяем плейсхолдеры на реальные значения

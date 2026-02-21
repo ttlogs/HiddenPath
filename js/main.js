@@ -50,7 +50,7 @@ class Game {
             this.trailSystem = new TrailSystem(2000);
             this.mobManager = new MobManager();
 
-            this.cameraController = new CameraController(
+            this.cameraController = new OrbitCameraController(
                 this.sceneManager.camera,
                 this.player
             );
@@ -62,7 +62,7 @@ class Game {
             this.sceneManager.add(this.mobManager.getGroup());
 
             this.createMapBoundaries();
-            this.cameraController.ensureSafePosition();
+
 
             // Спавним мобов
             this.mobManager.spawnMob('guard');
@@ -269,7 +269,13 @@ class Game {
             );
 
             this.cameraController.update(this.inputManager);
-            this.cameraController.ensureSafePosition();
+
+            // Update grass visibility cone
+            this.grassField.updateVisibility(
+                this.player.getPosition(),
+                this.player.getFacingAngle()
+            );
+
             this.updateUI();
         }
 

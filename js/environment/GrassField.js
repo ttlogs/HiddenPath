@@ -9,6 +9,14 @@ class GrassField {
         // Храним позиции всех активных игроков
         this.activePlayers = new Map(); // playerId -> { position, lastUpdate }
 
+        // Visibility cone configuration
+        this.visibilityConfig = {
+            coneAngle: Math.PI * 0.75,      // 135° total cone (67.5° each side)
+            fadeAngle: Math.PI * 0.25,      // 45° fade zone
+            maxDistance: 25,                 // Max visibility distance
+            minDistance: 3                   // Full visibility min distance
+        };
+
         this.generate();
     }
 
@@ -173,5 +181,54 @@ class GrassField {
                 lastUpdate: new Date(data.lastUpdate).toLocaleTimeString()
             }))
         };
+    }
+
+    // Update grass visibility based on player facing direction
+    updateVisibility(playerPosition, playerFacingAngle) {
+        const config = this.visibilityConfig;
+
+        for (const blade of this.grassBlades) {
+            const bladePos = blade.mesh.position;
+
+            // Vector from player to blade
+            const dx = bladePos.x - playerPosition.x;
+            const dz = bladePos.z - playerPosition.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+
+            // Distance-based visibility
+            if (distance > config.maxDistance) {
+                blade.mesh.material.opacity = 0;
+                continue;
+            }
+
+            // Angle from player facing direction
+            const bladeAngle = Math.atan2(dx, dz);
+            let angleDiff = Math.abs(bladeAngle - playerFacingAngle);
+
+            // Normalize to 0-PI range
+            if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+
+            // Calculate opacity
+            const halfCone = config.coneAngle / 2;
+            const fadeStart = halfCone - config.fadeAngle;
+
+            if (angleDiff > halfCone) {
+                // Outside cone - invisible
+                blade.mesh.material.opacity = 0;
+            } else if (angleDiff > fadeStart) {
+                // Fade zone - gradient
+                const fadeProgress = (angleDiff - fadeStart) / config.fadeAngle;
+                blade.mesh.material.opacity = 1 - fadeProgress;
+            } else {
+                // Inside cone - fully visible
+                blade.mesh.material.opacity = 1;
+            }
+
+            // Distance fade for far grass
+            if (distance > config.minDistance) {
+                const distFade = 1 - (distance - config.minDistance) / (config.maxDistance - config.minDistance);
+                blade.mesh.material.opacity *= Math.max(0, distFade);
+            }
+        }
     }
 }

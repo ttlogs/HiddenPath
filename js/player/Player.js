@@ -38,6 +38,9 @@ class Player {
             this.position.x = THREE.MathUtils.clamp(this.position.x, -18, 18);
             this.position.z = THREE.MathUtils.clamp(this.position.z, -18, 18);
 
+            // Update facing direction based on movement
+            this.direction.copy(movement).normalize();
+
             this.mesh.position.copy(this.position);
             moved = true;
         }
@@ -60,6 +63,10 @@ class Player {
 
     getDirection() {
         return this.direction.clone();
+    }
+
+    getFacingAngle() {
+        return Math.atan2(this.direction.x, this.direction.z);
     }
 
     didActuallyMove() {

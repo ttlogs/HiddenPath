@@ -11,10 +11,12 @@ class GrassBlade {
         const hue = 0.3 + Math.random() * 0.1;
         const saturation = 0.6 + Math.random() * 0.3;
         const lightness = 0.3 + Math.random() * 0.2;
-        
-        return new THREE.MeshLambertMaterial({ 
+
+        return new THREE.MeshLambertMaterial({
             color: new THREE.Color().setHSL(hue, saturation, lightness),
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 1.0
         });
     }
     
